@@ -1,0 +1,24 @@
+{
+  "name": "周末工作台",
+  "short_name": "周末工作台",
+  "description": "留给热爱与松弛的时光",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F9F6FB",
+  "theme_color": "#F9F6FB",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='36' fill='%23C9D7E8'/><text x='96' y='120' font-size='100' text-anchor='middle' dominant-baseline='middle'>🌿</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='90' fill='%23C9D7E8'/><text x='256' y='320' font-size='280' text-anchor='middle' dominant-baseline='middle'>🌿</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
