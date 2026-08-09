@@ -684,45 +684,11 @@ const store = {
   get(k,d){try{const v=localStorage.getItem('wb_'+k);return v?JSON.parse(v):d}catch(e){return d}},
   set(k,v){
     localStorage.setItem('wb_'+k,JSON.stringify(v));
-    _idb.set(k,v);  // 异步镜像到 IndexedDB
-    scheduleCacheBackup();  // 延迟镜像到 Cache API
+    _idb.set(k,v);
   }
 };
 
-/* ── Service Worker 注册（离线缓存 + 持久存储）── */
-if ('serviceWorker' in navigator) {
-    var refreshOnUpdate = function(reg) {
-      reg.addEventListener("updatefound", function() {
-        var nsw = reg.installing;
-        if (!nsw) return;
-        nsw.addEventListener("statechange", function() {
-          if (nsw.state === "installed" && navigator.serviceWorker.controller) {
-            setTimeout(function() { window.location.reload(); }, 300);
-          }
-        });
-      });
-    };
-  navigator.serviceWorker.register("./sw.js").then(refreshOnUpdate).catch(function(){});
-  navigator.serviceWorker.addEventListener("controllerchange", function() { window.location.reload(); });
-}
 
-/* ── Cache API 延迟镜像（通过 SW 写入，三层存储中的第三道防线）── */
-let _cacheBackupTimer = 0;
-function scheduleCacheBackup() {
-  clearTimeout(_cacheBackupTimer);
-  _cacheBackupTimer = setTimeout(() => {
-    if (!navigator.serviceWorker || !navigator.serviceWorker.controller) return;
-    const data = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.indexOf('wb_') === 0) data[k] = localStorage.getItem(k);
-    }
-    navigator.serviceWorker.controller.postMessage({
-      type: 'BACKUP_TO_CACHE',
-      payload: { time: Date.now(), data }
-    });
-  }, 3000);
-}
 
 /* ── iOS 数据恢复：localStorage 被清除时从 IndexedDB 自动恢复 ── */
 (function restoreFromIDB() {
