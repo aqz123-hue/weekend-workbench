@@ -9,7 +9,7 @@
  * - 监听消息通道，允许主线程将数据镜像到 Cache API（比 localStorage 更持久）
  */
 
-const CACHE_NAME = 'wwb-v4';
+const CACHE_NAME = 'wwb-v5'; // 每次发版更新版本号，触发自动刷新
 const DATA_CACHE = 'wwb-data-v4';
 
 // 安装：预缓存页面本身
