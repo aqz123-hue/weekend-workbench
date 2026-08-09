@@ -9,7 +9,7 @@
  * - 监听消息通道，允许主线程将数据镜像到 Cache API（比 localStorage 更持久）
  */
 
-const CACHE_NAME = 'wwb-v5'; // 每次发版更新版本号，触发自动刷新
+const CACHE_NAME = 'wwb-v6'; // 每次发版更新版本号，触发自动刷新
 const DATA_CACHE = 'wwb-data-v4';
 
 // 安装：预缓存页面本身
@@ -35,13 +35,15 @@ self.addEventListener('activate', (event) => {
 });
 
 // 网络优先，离线回退到缓存
+// 对页面请求强制 revalidate，避免浏览器 HTTP 缓存返回旧版本
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  const isNav = event.request.mode === 'navigate';
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, isNav ? { cache: 'no-cache' } : {})
       .then((response) => {
         // 缓存成功的 HTML 响应
-        if (event.request.destination === 'document' || event.request.url.endsWith('.html')) {
+        if (isNav || event.request.url.endsWith('.html')) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
