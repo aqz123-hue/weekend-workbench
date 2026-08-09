@@ -684,43 +684,37 @@ const store = {
   set(k,v){
     localStorage.setItem('wb_'+k,JSON.stringify(v));
     _idb.set(k,v);  // 异步镜像到 IndexedDB
-    scheduleCacheBackup();  // 延迟镜像到 Cache API
   }
 };
 
-/* ── Service Worker 注册（离线缓存 + 持久存储）── */
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
-}
+/* ── Service Worker 已移除 ──
+   iOS Web Clip 会将 SW 缓存独立存储，即使服务端更新，旧缓存仍会被反复加载，
+   导致「填内容→过一会→回退到旧版本」的死循环。移除 SW 后，每次打开都从网络
+   拉取最新页面，彻底解决此问题。数据持久化仍由 localStorage + IndexedDB 双层保护。 */
 
-/* ── Cache API 延迟镜像（通过 SW 写入，三层存储中的第三道防线）── */
-let _cacheBackupTimer = 0;
-function scheduleCacheBackup() {
-  clearTimeout(_cacheBackupTimer);
-  _cacheBackupTimer = setTimeout(() => {
-    if (!navigator.serviceWorker || !navigator.serviceWorker.controller) return;
-    const data = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.indexOf('wb_') === 0) data[k] = localStorage.getItem(k);
-    }
-    navigator.serviceWorker.controller.postMessage({
-      type: 'BACKUP_TO_CACHE',
-      payload: { time: Date.now(), data }
-    });
-  }, 3000);
-}
+/* ── 数据持久化：localStorage + IndexedDB 双层保护 ──
+   iOS Safari 可能在存储压力大时清除 localStorage。IndexedDB 属于不同存储类别，
+   被清除概率更低。每次写入 localStorage 时异步镜像到 IndexedDB。启动时如果发现
+   localStorage 丢失但 IndexedDB 有数据，自动恢复。 */
 
 /* ── iOS 数据恢复：localStorage 被清除时从 IndexedDB 自动恢复 ── */
 (function restoreFromIDB() {
-  if (localStorage.getItem('wb_wishes')) return;  // 数据正常
-  _idb.get('wishes').then(v => {
-    if (v === null) return;  // IDB 也没有，首次使用
-    // localStorage 丢失但 IndexedDB 还有 → 自动恢复
+  // 使用专用的初始化标记检测（而非业务数据 wb_wishes，避免无心愿时误判丢失）
+  if (localStorage.getItem('wb_initialized')) return;
+  _idb.get('initialized').then(v => {
+    if (v === null) {
+      // 首次使用，标记已初始化
+      localStorage.setItem('wb_initialized', '1');
+      _idb.set('initialized', '1');
+      return;
+    }
+    // localStorage 丢失但 IndexedDB 还有数据 → 自动恢复
     _idb.exportAll().then(({ keys, vals }) => {
       if (!keys.length) return;
       keys.forEach((k, i) => { try { localStorage.setItem(k, vals[i]); } catch (e) {} });
-      location.reload();  // 恢复后刷新以加载完整数据
+      // 使用带时间戳的 URL 强制绕过 SW 缓存重新加载
+      const busted = location.href.split('?')[0] + '?v=' + Date.now();
+      location.replace(busted);
     });
   });
 })();
@@ -1072,7 +1066,7 @@ function restoreFromJsonObj(p){
   const keys=Object.keys(p.data);
   showModal({title:'♻️ 恢复备份',body:'将用备份覆盖当前全部数据（共 '+keys.length+' 项）。覆盖后无法撤销，建议先点「💾 备份」存一份当前数据。确定继续？',
     buttons:[
-      {label:'确定恢复',kind:'main',onClick:()=>{keys.forEach(k=>localStorage.setItem(k,p.data[k]));hideModal();location.reload();}},
+      {label:'确定恢复',kind:'main',onClick:()=>{keys.forEach(k=>localStorage.setItem(k,p.data[k]));hideModal();location.replace(location.href.split('?')[0]+'?v='+Date.now());}},
       {label:'取消',onClick:()=>hideModal()}
     ]});
 }
@@ -1124,7 +1118,7 @@ function restoreFromHtml(html){
     body:'已从 HTML 快照识别 '+wishes.length+' 条心愿、'+sessions.length+' 条专注、'+books.length+' 本书、'+moods.length+' 条心情。'+
          '<br><span style="color:var(--ink-soft);font-size:12px">注意：HTML 是展示存档，分类/逐张照片等字段可能缺失；完整恢复请用「💾 备份」导出的 JSON。将覆盖当前数据，确定继续？</span>',
     buttons:[
-      {label:'确定恢复',kind:'main',onClick:()=>{Object.keys(data).forEach(k=>localStorage.setItem(k,data[k]));hideModal();location.reload();}},
+      {label:'确定恢复',kind:'main',onClick:()=>{Object.keys(data).forEach(k=>localStorage.setItem(k,data[k]));hideModal();location.replace(location.href.split('?')[0]+'?v='+Date.now());}},
       {label:'取消',onClick:()=>hideModal()}
     ]});
 }
