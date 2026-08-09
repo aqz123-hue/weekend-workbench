@@ -4,19 +4,19 @@
  * 核心作用：让 iOS 将本应用识别为「已安装的 PWA」，
  * 从而获得持久存储资格，避免 7 天数据清除策略。
  *
- * 额外功能：
- * - 离线时用 Cache API 提供基础页面骨架
- * - 监听消息通道，允许主线程将数据镜像到 Cache API（比 localStorage 更持久）
+ * 策略：不在 install 阶段预缓存 HTML，防止旧版本被钉死。
+ *       所有页面请求走网络优先 + no-cache 强制 revalidate。
+ *       网络成功后才缓存，作为离线回退。
  */
 
-const CACHE_NAME = 'wwb-v6'; // 每次发版更新版本号，触发自动刷新
+const CACHE_NAME = 'wwb-v7';
 const DATA_CACHE = 'wwb-data-v4';
 
-// 安装：预缓存页面本身
+// 安装：只缓存 manifest，不缓存 HTML（避免旧版本被预缓存钉死）
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(['./index.html', './manifest.json']);
+      return cache.addAll(['./manifest.json']);
     })
   );
   self.skipWaiting();
@@ -34,22 +34,25 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// 网络优先，离线回退到缓存
-// 对页面请求强制 revalidate，避免浏览器 HTTP 缓存返回旧版本
+// 网络优先 + no-cache 强制 revalidate，离线回退到缓存
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const isNav = event.request.mode === 'navigate';
+
   event.respondWith(
     fetch(event.request, isNav ? { cache: 'no-cache' } : {})
       .then((response) => {
-        // 缓存成功的 HTML 响应
+        // 网络成功 → 缓存最新版本，作为下次离线回退
         if (isNav || event.request.url.endsWith('.html')) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() => {
+        // 网络失败 → 使用缓存（离线场景）
+        return caches.match(event.request);
+      })
   );
 });
 
