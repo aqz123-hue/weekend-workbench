@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>周末工作台 · 留给热爱与松弛的时光</title>
+	<meta name="version" content="2026-08-09.v4" />
 <link rel="manifest" href="./manifest.json" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -690,7 +691,19 @@ const store = {
 
 /* ── Service Worker 注册（离线缓存 + 持久存储）── */
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
+    var refreshOnUpdate = function(reg) {
+      reg.addEventListener("updatefound", function() {
+        var nsw = reg.installing;
+        if (!nsw) return;
+        nsw.addEventListener("statechange", function() {
+          if (nsw.state === "installed" && navigator.serviceWorker.controller) {
+            setTimeout(function() { window.location.reload(); }, 300);
+          }
+        });
+      });
+    };
+  navigator.serviceWorker.register("./sw.js").then(refreshOnUpdate).catch(function(){});
+  navigator.serviceWorker.addEventListener("controllerchange", function() { window.location.reload(); });
 }
 
 /* ── Cache API 延迟镜像（通过 SW 写入，三层存储中的第三道防线）── */
@@ -1197,6 +1210,7 @@ function genExport(scope,mk){
         sessions:(b.sessions||[]).filter(s=>new Date(s.ts).getFullYear()===y)}));
     liveBookSnap.forEach(bs=>{if(!bookSnap.find(x=>x.title===bs.title))bookSnap.push(bs);});
   }
+  periodPhotos=[...new Set(periodPhotos)]; // 去重：同一张照片不会既以"实时照片"又以"月度归档快照"重复出现
   const focusTotal=sess.reduce((a,s)=>a+s.mins,0);
   const cat={};sess.forEach(s=>{cat[s.g]=(cat[s.g]||0)+s.mins;});
   const html=buildExportHTML({label,focusTotal,cat,wishSnap,sess,moods,blessText,periodPhotos,bookSnap});

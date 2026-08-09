@@ -9,8 +9,8 @@
  * - 监听消息通道，允许主线程将数据镜像到 Cache API（比 localStorage 更持久）
  */
 
-const CACHE_NAME = 'wwb-v3';
-const DATA_CACHE = 'wwb-data-v3';
+const CACHE_NAME = 'wwb-v4';
+const DATA_CACHE = 'wwb-data-v4';
 
 // 安装：预缓存页面本身
 self.addEventListener('install', (event) => {
