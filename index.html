@@ -1066,7 +1066,12 @@ function restoreFromJsonObj(p){
   const keys=Object.keys(p.data);
   showModal({title:'♻️ 恢复备份',body:'将用备份覆盖当前全部数据（共 '+keys.length+' 项）。覆盖后无法撤销，建议先点「💾 备份」存一份当前数据。确定继续？',
     buttons:[
-      {label:'确定恢复',kind:'main',onClick:()=>{keys.forEach(k=>localStorage.setItem(k,p.data[k]));hideModal();location.replace(location.href.split('?')[0]+'?v='+Date.now());}},
+      {label:'确定恢复',kind:'main',onClick:()=>{
+        keys.forEach(k=>localStorage.setItem(k,p.data[k]));
+        localStorage.setItem('wb_initialized','1'); // 阻止 restoreFromIDB 用旧数据覆盖
+        hideModal();
+        location.replace(location.href.split('?')[0]+'?v='+Date.now());
+      }},
       {label:'取消',onClick:()=>hideModal()}
     ]});
 }
@@ -1118,7 +1123,7 @@ function restoreFromHtml(html){
     body:'已从 HTML 快照识别 '+wishes.length+' 条心愿、'+sessions.length+' 条专注、'+books.length+' 本书、'+moods.length+' 条心情。'+
          '<br><span style="color:var(--ink-soft);font-size:12px">注意：HTML 是展示存档，分类/逐张照片等字段可能缺失；完整恢复请用「💾 备份」导出的 JSON。将覆盖当前数据，确定继续？</span>',
     buttons:[
-      {label:'确定恢复',kind:'main',onClick:()=>{Object.keys(data).forEach(k=>localStorage.setItem(k,data[k]));hideModal();location.replace(location.href.split('?')[0]+'?v='+Date.now());}},
+      {label:'确定恢复',kind:'main',onClick:()=>{Object.keys(data).forEach(k=>localStorage.setItem(k,data[k]));localStorage.setItem('wb_initialized','1');hideModal();location.replace(location.href.split('?')[0]+'?v='+Date.now());}},
       {label:'取消',onClick:()=>hideModal()}
     ]});
 }
