@@ -836,6 +836,7 @@ function openItemMore(w){
     <button class="more-act" id="moreRep">${w.repeat?'🔁 取消每周重复':'🔁 设为每周重复'}</button>
     ${bookBtn}
     <button class="more-act" id="morePhoto">📷 拍照记录</button>
+	    <button class="more-act" id="moreUpload">🖼 上传图片</button>
     ${hasPhoto?'<button class="more-act" id="moreView">🖼 查看记录</button>':''}
     <button class="more-act danger" id="moreDel">🗑 删除此事</button>
   </div>`;
@@ -844,6 +845,7 @@ function openItemMore(w){
   $('#moreRep').onclick=()=>{w.repeat=!w.repeat;if(w.repeat)w.weekKey=weekKey(new Date());else delete w.weekKey;saveWishes();renderWishes();hideModal();};
   const $mb=$('#moreBook');if($mb)$mb.onclick=()=>{if(isReadingWish(w))openBookModal(w.bookId,w);else openBookPicker(w);};
   $('#morePhoto').onclick=()=>{photoTarget=w.id;fileInput.click();hideModal();};
+	  $('#moreUpload').onclick=()=>{photoTarget=w.id;fileInput.click();hideModal();};
   if(hasPhoto)$('#moreView').onclick=()=>{openGallery(w.id);hideModal();};
   $('#moreDel').onclick=()=>{
     showModal({title:'删除确认',body:`确定删除「${esc(w.name)}」？此操作不可撤销。`,
@@ -1503,7 +1505,7 @@ function compressImg(file,maxDim,cb){
   r.readAsDataURL(file);
 }
 const fileInput=document.createElement('input');
-fileInput.type='file';fileInput.accept='image/*';fileInput.capture='environment';
+fileInput.type='file';fileInput.accept='image/*';// capture 已移除，允许从相册选择
 fileInput.style.display='none';document.body.appendChild(fileInput);
 fileInput.onchange=()=>{
   const f=fileInput.files&&fileInput.files[0];if(!f||!photoTarget)return;
