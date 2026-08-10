@@ -575,7 +575,7 @@
     <section class="card">
       <div class="card-title"><span class="ic">✨</span><h2 id="reviewTitle">周末回顾 · 小确幸</h2></div>
       <div class="stat-row">
-        <div class="stat"><div class="n" id="stFocus">0</div><div class="l">专注分钟</div></div>
+        <div class="stat"><div class="n" id="stFocus">0</div><div class="l">本周专注</div></div>
         <div class="stat"><div class="n" id="stDone">0</div><div class="l">完成心愿</div></div>
         <div class="stat"><div class="n t" id="stMood">待记录</div><div class="l">今日心情</div></div>
       </div>
@@ -634,7 +634,7 @@
     <button class="tab" data-page="archive"><span class="ticon">📂</span>归档</button>
   </nav>
 
-  <div class="foot">周末工作台 · v2.8 · 所有数据保存在本机，私密安全</div>
+  <div class="foot">周末工作台 · v2.8.1 · 所有数据保存在本机，私密安全</div>
 </div>
 
 <!-- 柔和弹窗 -->
@@ -768,6 +768,10 @@ const uid=()=>'w'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 function monthKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
 function weekKey(d){const x=new Date(d);const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);
   return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`;}
+function weekFocusMin(){
+  const wk=weekKey(new Date());
+  return store.get('sessions',[]).filter(s=>weekKey(new Date(s.ts))===wk).reduce((a,s)=>a+s.mins,0);
+}
 
 /* ---------- 心愿清单 数据 ---------- */
 const GROUPS={art:'文艺休闲',body:'身心运动',free:'自由娱乐'};
@@ -1805,7 +1809,7 @@ function finishTimer(){
   running=false;clearInterval(timer);timer=null;left=0;runStartTs=0;updateIdle();
   render();setState('很棒，完成这段专注');saveTimer();
   const mins=Math.round(total/60);
-  const add=store.get('focusMin',0)+mins;store.set('focusMin',add);$('#stFocus').textContent=add;
+  const add=store.get('focusMin',0)+mins;store.set('focusMin',add);$('#stFocus').textContent=weekFocusMin();
   const w=linkedId?wishes.find(x=>x.id===linkedId):null;
   logSession(mins, w?w.name:null, w?w.g:null);
   if(w&&w.bookId)addBookSession(w.bookId,mins,w.name);
@@ -1895,7 +1899,7 @@ renderPresets();
 
 /* 恢复计时状态（断网/刷新/黑屏保护 · 时间戳差值算法） */
 (function restoreTimer(){
-  const t=store.get('timer',null);if(!t){$('#stFocus').textContent=store.get('focusMin',0);render();return;}
+  const t=store.get('timer',null);if(!t){$('#stFocus').textContent=weekFocusMin();render();return;}
   mode=t.mode||'focus';total=t.total||DUR[mode];left=(t.left!=null?t.left:total);
   linkedId=t.linkedId||null;running=false;runStartTs=0;
   $$('.mode-btn').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));
@@ -1914,7 +1918,7 @@ renderPresets();
       $('#startBtn').textContent='暂停';setState('享受当下时光');render();
     }
   }else{render();setState(mode==='focus'?'准备好了吗':'放松一下 · 深呼吸');}
-  $('#stFocus').textContent=store.get('focusMin',0);
+  $('#stFocus').textContent=weekFocusMin();
 })();
 
 /* 黑屏 / 切后台 / 切标签页：回前台时用时间戳重算 */
