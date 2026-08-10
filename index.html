@@ -566,13 +566,15 @@
       <div class="bless"><div class="num">2</div><textarea data-b="1" placeholder="读完一章节书籍…"></textarea></div>
       <div class="bless"><div class="num">3</div><textarea data-b="2" placeholder="慢悠悠散了个步…"></textarea></div>
       <div class="archive-bar">
+        <button id="weekArcBtn">📂 归档本周</button>
         <button id="arcBtn">📂 归档本月</button>
         <span id="arcStatus" style="font-size:11px;color:#6a9a7c;display:none">✅ 已归档</span>
+        <select id="weekArcSel"><option value="">翻阅往周…</option></select>
+        <select id="arcSel"><option value="">翻阅往期…</option></select>
         <button id="expBtn">📄 导出</button>
         <button id="bkBtn">💾 备份</button>
         <button id="rsBtn">♻️ 恢复</button>
         <input type="file" id="rsFile" accept="application/json,.json,text/html,.html,.htm" style="display:none">
-        <select id="arcSel"><option value="">翻阅往期…</option></select>
       </div>
       <div class="past" id="past"></div>
     </section>
@@ -981,7 +983,7 @@ $('#arcBtn').onclick=()=>{
     at:Date.now()};
   store.set('archive',arc);refreshArcSel();$('#arcSel').value=k;showPast(k);
 };
-$('#arcSel').onchange=()=>{if($('#arcSel').value)showPast($('#arcSel').value);else $('#past').classList.remove('show');};
+$('#arcSel').onchange=()=>{if($('#arcSel').value){$('#weekArcSel').value='';showPast($('#arcSel').value);}else $('#past').classList.remove('show');};
 function showPast(k){
   const a=store.get('archive',{})[k];if(!a)return;
   const lines=a.bless.filter(Boolean);
@@ -1026,6 +1028,157 @@ function showPast(k){
   $('#past').classList.add('show');
 }
 refreshArcSel();
+
+/* ---------- 周归档 ---------- */
+function weekArchiveCurrent(){
+  const wk = weekKey(new Date());
+  const weekArc = store.get('weekArchive', {});
+  // 本周已归档过 → 覆盖更新（允许重复归档以更新快照）
+  const curPhotos = {};
+  Object.keys(photos).forEach(id => {
+    if (photos[id] && photos[id].length) curPhotos[id] = photos[id].slice();
+  });
+  const wishesSnap = wishes.map(w => ({
+    name: w.name, min: w.min, g: w.g, count: w.count !== false,
+    done: !!done[w.id], timed: timed[w.id] || 0
+  }));
+  const allSessions = store.get('sessions', []);
+  const weekSessions = allSessions.filter(s => weekKey(new Date(s.ts)) === wk);
+  const bookSnap = books.filter(b => (b.sessions || []).some(s => weekKey(new Date(s.ts)) === wk))
+    .map(b => ({
+      title: b.title, author: b.author, status: b.status, progress: b.progress,
+      note: b.note, totalMins: b.totalMins, startedAt: b.startedAt, finishedAt: b.finishedAt,
+      sessions: (b.sessions || []).filter(s => weekKey(new Date(s.ts)) === wk)
+    }));
+  weekArc[wk] = {
+    bless: bless.slice(),
+    mood: store.get('mood', ''),
+    done: {...done},
+    timed: {...timed},
+    wishesSnap,
+    photos: curPhotos,
+    sessions: weekSessions,
+    bookSnap,
+    at: Date.now()
+  };
+  store.set('weekArchive', weekArc);
+  return wk;
+}
+
+function resetWeeklyData(){
+  store.set('done', {});
+  store.set('timed', {});
+  store.set('bless', ['','','']);
+  store.set('mood', '');
+  store.set('photos', {});
+  store.set('lastWeekKey', weekKey(new Date()));
+  done = {}; timed = {}; photos = {};
+  bless[0] = ''; bless[1] = ''; bless[2] = '';
+}
+
+function refreshWeekArcSel(){
+  const weekArc = store.get('weekArchive', {});
+  const sel = $('#weekArcSel');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">翻阅往周…</option>' +
+    Object.keys(weekArc).sort().reverse().map(k => {
+      const a = weekArc[k];
+      const d = new Date(k);
+      const endD = new Date(d); endD.setDate(endD.getDate() + 6);
+      const doneCount = a.wishesSnap ? a.wishesSnap.filter(w => w.done).length : 0;
+      const total = a.wishesSnap ? a.wishesSnap.filter(w => w.count).length : 0;
+      return `<option value="${k}">${k} · ${d.getMonth()+1}/${d.getDate()}-${endD.getMonth()+1}/${endD.getDate()} · ${doneCount}/${total}</option>`;
+    }).join('');
+}
+
+function showWeekPast(k){
+  const weekArc = store.get('weekArchive', {});
+  const a = weekArc[k];
+  if (!a) return;
+  const lines = (a.bless || []).filter(Boolean);
+  const photoList = [];
+  if (a.photos) {
+    Object.keys(a.photos).forEach(id => {
+      (a.photos[id] || []).forEach(u => photoList.push({ name: '', url: u }));
+    });
+  }
+  const doneCnt = a.wishesSnap ? a.wishesSnap.filter(w => w.done).length : 0;
+  const totalCnt = a.wishesSnap ? a.wishesSnap.filter(w => w.count).length : 0;
+  let html = `<b>${k} 起的一周</b> · 完成 ${doneCnt}/${totalCnt} 件` +
+    (lines.length ? '<br>' + lines.map((t, i) => `${i + 1}. ${t}`).join('<br>') : '<br>（那周没有记录小确幸）');
+  if (photoList.length) {
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">' +
+      photoList.map((p, i) => `<img src="${p.url}" data-i="${i}" style="width:56px;height:56px;object-fit:cover;border-radius:9px;cursor:pointer;border:1px solid var(--line)">`).join('') + '</div>';
+  }
+  const bs = a.bookSnap || [];
+  if (bs.length) {
+    const bm = bs.reduce((x, b) => x + (b.totalMins || 0), 0);
+    const bd = bs.filter(b => b.status === 'done').length;
+    html += `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-soft)">📖 ${bs.length} 本 · 累计 ${bm}min${bd ? ' · 读完 ' + bd + ' 本' : ''}</div>`;
+  }
+  $('#past').innerHTML = html;
+  if (photoList.length) {
+    const urls = photoList.map(p => p.url);
+    const bindWeekPhotos = () => {
+      $('#past').querySelectorAll('img').forEach(im => im.onclick = () => {
+        viewPhotos(urls, {
+          deletable: true,
+          onDelete: (updatedUrls) => {
+            const wArc = store.get('weekArchive', {});
+            if (wArc[k] && wArc[k].photos) {
+              Object.keys(wArc[k].photos).forEach(id => {
+                wArc[k].photos[id] = (wArc[k].photos[id] || []).filter(u => updatedUrls.includes(u));
+                if (!wArc[k].photos[id].length) delete wArc[k].photos[id];
+              });
+              store.set('weekArchive', wArc);
+            }
+            showWeekPast(k);
+          }
+        }, +im.dataset.i);
+      });
+    };
+    bindWeekPhotos();
+  }
+  $('#past').classList.add('show');
+}
+
+/* 归档本周按钮（仅保存快照，不重置数据，可随时点击） */
+$('#weekArcBtn').onclick = () => {
+  const wk = weekKey(new Date());
+  const weekArc = store.get('weekArchive', {});
+  const existing = weekArc[wk];
+  const alreadyMsg = existing ? '<br><span style="font-size:12px;color:#b06a8c">⚠️ 本周已有归档，点击确认将用最新数据覆盖。</span>' : '';
+  showModal({
+    title: '📂 归档本周',
+    body: `保存本周当前的打卡快照到"周围档"。<br><span style="font-size:12px;color:var(--ink-soft)">随时可点，不会清空任何数据，放心使用 💚</span>${alreadyMsg}`,
+    buttons: [
+      {
+        label: '保存快照',
+        kind: 'main',
+        onClick: () => {
+          const savedWk = weekArchiveCurrent();
+          hideModal();
+          refreshWeekArcSel();
+          // 短暂高亮提示
+          const sel = $('#weekArcSel');
+          sel.value = savedWk;
+          showWeekPast(savedWk);
+        }
+      },
+      { label: '取消', onClick: () => hideModal() }
+    ]
+  });
+};
+
+/* 周翻阅 */
+$('#weekArcSel').onchange = () => {
+  const v = $('#weekArcSel').value;
+  $('#arcSel').value = ''; // 取消月选择
+  if (v) showWeekPast(v);
+  else $('#past').classList.remove('show');
+};
+
+refreshWeekArcSel();
 
 /* ---------- JSON 备份 / 恢复（抗 localStorage 易失） ---------- */
 function jsonBackup(){
@@ -1747,6 +1900,63 @@ function renderDash(){
   renderReadStats();
 }
 renderDash();
+
+/* ── 新周检测：自动提示归档上周数据 ── */
+(function checkNewWeek() {
+  const cw = weekKey(new Date());
+  const lastWk = store.get('lastWeekKey', '');
+  if (!lastWk) {
+    // 首次使用：记录当前周
+    store.set('lastWeekKey', cw);
+    return;
+  }
+  if (lastWk === cw) return; // 同一周，无需处理
+
+  // 进入新周！检查上周是否已归档
+  const weekArc = store.get('weekArchive', {});
+  const alreadyArchived = !!weekArc[lastWk];
+
+  if (alreadyArchived) {
+    // 已手动归档过，直接重置
+    resetWeeklyData();
+    refreshWeekArcSel();
+    renderWishes();
+    renderDash();
+    return;
+  }
+
+  // 未归档 → 弹窗提示
+  showModal({
+    title: '🌿 新的一周开始了！',
+    body: `上周（${lastWk} 起）的打卡记录还没有归档。<br><br>归档后：<br>· 心愿打勾状态清空 ✓<br>· 小确幸 & 心情清空 ✓<br>· 完成记录保存到"周围档"可随时翻阅 ✓<br>· 心愿清单模板保持不变 ✓`,
+    buttons: [
+      {
+        label: '归档并开启新周',
+        kind: 'main',
+        onClick: () => {
+          weekArchiveCurrent();
+          resetWeeklyData();
+          hideModal();
+          sessionStorage.setItem('wb_roll', '1'); // 避免周日弹窗重复出现
+          refreshWeekArcSel();
+          renderWishes();
+          renderDash();
+          $$('.bless textarea').forEach(t => t.value = '');
+          $$('.mood').forEach(x => x.classList.remove('sel'));
+          $('#stMood').textContent = '待记录';
+          updateProgress();
+        }
+      },
+      {
+        label: '稍后再说',
+        onClick: () => {
+          store.set('lastWeekKey', cw); // 更新周标记，不再重复弹窗
+          hideModal();
+        }
+      }
+    ]
+  });
+})();
 
 /* ---------- 周日遗留事项承接（排除重复项） ---------- */
 (function(){
