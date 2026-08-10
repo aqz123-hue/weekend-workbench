@@ -591,7 +591,7 @@
     <div id="readStats"></div>
   </section>
 
-  <div class="foot">周末工作台 · v2.6 · 所有数据保存在本机，私密安全</div>
+  <div class="foot">周末工作台 · v2.7 · 所有数据保存在本机，私密安全</div>
 </div>
 
 <!-- 柔和弹窗 -->
@@ -1030,8 +1030,8 @@ function showPast(k){
 refreshArcSel();
 
 /* ---------- 周归档 ---------- */
-function weekArchiveCurrent(){
-  const wk = weekKey(new Date());
+function weekArchiveCurrent(wkOverride){
+  const wk = wkOverride || weekKey(new Date());
   const weekArc = store.get('weekArchive', {});
   // 本周已归档过 → 覆盖更新（允许重复归档以更新快照）
   const curPhotos = {};
@@ -1642,7 +1642,7 @@ function compressImg(file,maxDim,cb){
   r.readAsDataURL(file);
 }
 const fileInput=document.createElement('input');
-fileInput.type='file';fileInput.accept='image/*';fileInput.capture='environment';
+fileInput.type='file';fileInput.accept='image/*';
 fileInput.style.display='none';document.body.appendChild(fileInput);
 fileInput.onchange=()=>{
   const f=fileInput.files&&fileInput.files[0];if(!f||!photoTarget)return;
@@ -1906,8 +1906,54 @@ renderDash();
   const cw = weekKey(new Date());
   const lastWk = store.get('lastWeekKey', '');
   if (!lastWk) {
-    // 首次使用：记录当前周
-    store.set('lastWeekKey', cw);
+    // 首次使用此功能：检查是否已有旧数据
+    const hasData = Object.keys(done).length > 0 || bless.some(Boolean) || store.get('mood', '');
+    if (hasData) {
+      // 有旧数据，推测上周的 key（当前周一往前 7 天）
+      const d = new Date(); d.setDate(d.getDate() - 7);
+      const prevWk = weekKey(d);
+      showModal({
+        title: '🌿 检测到未归档的旧数据',
+        body: `看起来你上周已经在使用工作台了（有打卡记录、小确幸等）。<br><br>要将这些数据归档到上周（${prevWk} 起），然后开启新的一周吗？`,
+        buttons: [
+          {
+            label: '归档到上周并开启新周',
+            kind: 'main',
+            onClick: () => {
+              weekArchiveCurrent(prevWk); // 用上周的 key 归档
+              resetWeeklyData();
+              hideModal();
+              sessionStorage.setItem('wb_roll', '1');
+              refreshWeekArcSel();
+              renderWishes();
+              renderDash();
+              $$('.bless textarea').forEach(t => t.value = '');
+              $$('.mood').forEach(x => x.classList.remove('sel'));
+              $('#stMood').textContent = '待记录';
+              updateProgress();
+            }
+          },
+          {
+            label: '不归档，直接开始新周',
+            onClick: () => {
+              resetWeeklyData();
+              store.set('lastWeekKey', cw);
+              hideModal();
+              refreshWeekArcSel();
+              renderWishes();
+              renderDash();
+              $$('.bless textarea').forEach(t => t.value = '');
+              $$('.mood').forEach(x => x.classList.remove('sel'));
+              $('#stMood').textContent = '待记录';
+              updateProgress();
+            }
+          }
+        ]
+      });
+    } else {
+      // 干净的首次使用
+      store.set('lastWeekKey', cw);
+    }
     return;
   }
   if (lastWk === cw) return; // 同一周，无需处理
