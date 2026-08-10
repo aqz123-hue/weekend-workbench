@@ -634,7 +634,7 @@
     <button class="tab" data-page="archive"><span class="ticon">📂</span>归档</button>
   </nav>
 
-  <div class="foot">周末工作台 · v2.8.1 · 所有数据保存在本机，私密安全</div>
+  <div class="foot">周末工作台 · v2.8.2 · 所有数据保存在本机，私密安全</div>
 </div>
 
 <!-- 柔和弹窗 -->
@@ -1923,9 +1923,16 @@ renderPresets();
 
 /* 黑屏 / 切后台 / 切标签页：回前台时用时间戳重算 */
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'&&running){
-    left=calcLeft();render();
-    if(left<=0)finishTimer();
+  if(document.visibilityState==='visible'){
+    // 恢复计时器状态
+    if(running){
+      left=calcLeft();render();
+      if(left<=0)finishTimer();
+    }
+    // 黑屏/切后台后恢复环境音
+    if(_actx&&_actx.state==='suspended'){
+      _actx.resume().catch(()=>{});
+    }
   }
 });
 window.addEventListener('pageshow',e=>{
