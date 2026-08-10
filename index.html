@@ -435,10 +435,31 @@
     .rb-stats{grid-template-columns:repeat(2,1fr);gap:8px}
     .rb-stats .bs .bn{font-size:19px}
   }
+  /* ---------- 底部 Tab 导航 ---------- */
+  .tabs{
+    position:fixed;bottom:0;left:0;right:0;z-index:40;
+    display:flex;background:var(--card);border-top:1px solid var(--line);
+    padding:6px 8px;padding-bottom:max(6px, env(safe-area-inset-bottom));
+    box-shadow:0 -4px 16px rgba(60,50,90,.08);
+  }
+  .tab{
+    flex:1;border:none;background:transparent;color:var(--ink-soft);
+    font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;
+    padding:7px 4px;border-radius:10px;transition:.2s;
+    display:flex;flex-direction:column;align-items:center;gap:3px;
+  }
+  .tab.active{color:#6a5aa0;background:var(--tint-mood)}
+  .tab .ticon{font-size:18px;line-height:1}
+  body.has-tabs{padding-bottom:90px}
+  .page{display:none}
+  .page.active{display:block}
 </style>
 </head>
 <body>
 <div class="wrap">
+
+  <!-- ===== 页1：打卡 ===== -->
+  <div class="page active" id="page-checkin">
 
   <!-- ===== Header ===== -->
   <header class="header">
@@ -565,33 +586,55 @@
       <div class="bless"><div class="num">1</div><textarea data-b="0" placeholder="完整弹完一首曲子…"></textarea></div>
       <div class="bless"><div class="num">2</div><textarea data-b="1" placeholder="读完一章节书籍…"></textarea></div>
       <div class="bless"><div class="num">3</div><textarea data-b="2" placeholder="慢悠悠散了个步…"></textarea></div>
+      <div class="archive-bar" style="justify-content:center;margin-top:8px">
+        <button id="expBtn">📄 导出</button>
+        <button id="bkBtn">💾 备份</button>
+        <button id="rsBtn">♻️ 恢复</button>
+        <input type="file" id="rsFile" accept="application/json,.json,text/html,.html,.htm" style="display:none">
+      </div>
+    </section>
+  </div>
+</div><!-- end page-checkin -->
+
+  <!-- ===== 页2：阅读成长 ===== -->
+  <div class="page" id="page-dashboard">
+    <section class="card">
+      <div id="readStats"></div>
+    </section>
+  </div>
+
+  <!-- ===== 页3：归档 & 看板 ===== -->
+  <div class="page" id="page-archive">
+    <section class="card">
+      <div class="card-title"><span class="ic">📂</span><h2>归档回顾</h2></div>
       <div class="archive-bar">
         <button id="weekArcBtn">📂 归档本周</button>
         <button id="arcBtn">📂 归档本月</button>
         <span id="arcStatus" style="font-size:11px;color:#6a9a7c;display:none">✅ 已归档</span>
         <select id="weekArcSel"><option value="">翻阅往周…</option></select>
         <select id="arcSel"><option value="">翻阅往期…</option></select>
-        <button id="expBtn">📄 导出</button>
-        <button id="bkBtn">💾 备份</button>
-        <button id="rsBtn">♻️ 恢复</button>
-        <input type="file" id="rsFile" accept="application/json,.json,text/html,.html,.htm" style="display:none">
       </div>
       <div class="past" id="past"></div>
     </section>
+
+    <!-- ===== 本月专注看板 ===== -->
+    <section class="card">
+      <div class="card-title"><span class="ic">📊</span><h2>本月专注看板</h2>
+        <span class="hint">温柔复盘爱好投入</span></div>
+      <div class="stat-row">
+        <div class="stat"><div class="n" id="dashTotal">0</div><div class="l">本月专注分钟</div></div>
+      </div>
+      <div id="dashBars"></div>
+    </section>
   </div>
 
-  <!-- ===== 本月专注看板 ===== -->
-  <section class="card">
-    <div class="card-title"><span class="ic">📊</span><h2>本月专注看板</h2>
-      <span class="hint">温柔复盘爱好投入</span></div>
-    <div class="stat-row">
-      <div class="stat"><div class="n" id="dashTotal">0</div><div class="l">本月专注分钟</div></div>
-    </div>
-    <div id="dashBars"></div>
-    <div id="readStats"></div>
-  </section>
+  <nav class="tabs">
+    <button class="tab active" data-page="checkin"><span class="ticon">📌</span>打卡</button>
+    <button class="tab" data-page="dashboard"><span class="ticon">📖</span>阅读</button>
+    <button class="tab" data-page="archive"><span class="ticon">📂</span>归档</button>
+  </nav>
 
-  <div class="foot">周末工作台 · v2.7.1 · 所有数据保存在本机，私密安全</div>
+  <div class="foot">周末工作台 · v2.8 · 所有数据保存在本机，私密安全</div>
 </div>
 
 <!-- 柔和弹窗 -->
@@ -2101,6 +2144,22 @@ renderDash();
       }, 100);
     }
   }
+})();
+
+/* ---------- 底部 Tab 切换 ---------- */
+document.body.classList.add('has-tabs');
+(function(){
+  const tabs = $$('.tab');
+  const pages = $$('.page');
+  tabs.forEach(t => {
+    t.onclick = () => {
+      tabs.forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      pages.forEach(p => p.classList.remove('active'));
+      const page = document.getElementById('page-' + t.dataset.page);
+      if (page) page.classList.add('active');
+    };
+  });
 })();
 
 /* ---------- 暗色模式 ---------- */
