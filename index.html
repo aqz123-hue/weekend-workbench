@@ -100,8 +100,8 @@
     .affirm{padding:15px 15px 4px}
     .affirm .atext{font-size:16.5px;line-height:1.75}
     .affirm .q{font-size:21px}
-    .amb{gap:7px;margin-top:13px}
-    .amb .chip{font-size:11px;padding:0 2px;min-height:40px}
+    .amb{gap:6px;margin-top:13px}
+    .amb .chip{font-size:12px;padding:7px 10px;min-height:38px}
     /* 周末回顾 */
     .stat-row{gap:8px;margin-bottom:14px}
     .stat{min-height:72px;padding:11px 4px}
@@ -112,9 +112,6 @@
     .bless{gap:8px;margin-bottom:8px}
     .archive-bar{gap:7px;flex-wrap:wrap}
     .archive-bar select{max-width:48%;flex:1;min-width:0}
-  }
-  @media(max-width:372px){
-    .amb{grid-template-columns:repeat(2,1fr);max-width:100%}
   }
 
   .card{max-width:100%;background:var(--card);border-radius:var(--r-card);box-shadow:var(--shadow);
@@ -252,10 +249,10 @@
     min-height:40px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;
     border-radius:var(--r-pill);font-family:inherit;transition:.2s}
   .affirm .swap:hover{opacity:1}
-  .amb{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
-  .amb .chip{font-size:11.5px;padding:0 4px;min-height:40px;border-radius:var(--r-pill);background:var(--bg2);
+  .amb{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+  .amb .chip{font-size:12px;padding:8px 14px;min-height:40px;border-radius:var(--r-pill);background:var(--bg2);
     color:var(--ink-soft);cursor:pointer;border:1px solid var(--line);transition:.2s;
-    display:flex;align-items:center;justify-content:center;text-align:center;white-space:nowrap}
+    display:inline-flex;align-items:center;justify-content:center;text-align:center;white-space:nowrap}
   .amb .chip.on{background:linear-gradient(135deg,var(--grad-a),var(--grad-b));color:#fff;border-color:transparent}
 
   /* ---------- review ---------- */
@@ -640,7 +637,7 @@
     <button class="tab" data-page="archive"><span class="ticon">📂</span>归档</button>
   </nav>
 
-  <div class="foot">周末工作台 · v2.9.1 · 所有数据保存在本机，私密安全</div>
+  <div class="foot">周末工作台 · v2.9.2 · 所有数据保存在本机，私密安全</div>
 </div>
 
 <!-- 柔和弹窗 -->
