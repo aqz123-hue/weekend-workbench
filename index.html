@@ -41,6 +41,7 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{overflow-x:hidden;width:100%}
+  img,svg,textarea,input,select,button{max-width:100%}
   body{
     font-family:var(--font-base);
     color:var(--ink);min-height:100vh;line-height:1.8;
@@ -54,7 +55,7 @@
   .wrap{max-width:1060px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:18px}
 
   /* ---------- Header ---------- */
-  .header{
+  .header{max-width:100%;overflow:hidden;
     background:var(--card);border-radius:var(--r-card);box-shadow:var(--shadow);
     border:1px solid var(--line);
     padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
@@ -114,7 +115,7 @@
     .archive-bar select{max-width:48%;flex:1;min-width:0}
   }
 
-  .card{max-width:100%;background:var(--card);border-radius:var(--r-card);box-shadow:var(--shadow);
+  .card{max-width:100%;overflow:hidden;background:var(--card);border-radius:var(--r-card);box-shadow:var(--shadow);
     border:1px solid var(--line);padding:20px 22px;transition:transform .25s,box-shadow .25s}
   .card:hover{box-shadow:var(--shadow-h)}
   .card-title{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-bottom:6px}
@@ -269,7 +270,7 @@
   .bless{display:flex;gap:9px;margin-bottom:9px;align-items:flex-start}
   .bless .num{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--grad-a),var(--grad-b));
     color:#fff;display:grid;place-items:center;font-size:12px;font-weight:500;margin-top:2px}
-  .bless textarea{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px 11px;
+  .bless textarea{flex:1;min-width:0;max-width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 11px;
     font-family:inherit;font-size:16px;resize:vertical;min-height:44px;background:var(--bg2);color:var(--ink);transition:.2s}
   .bless textarea:focus{outline:none;border-color:var(--grad-b);background:var(--card);box-shadow:0 0 0 3px rgba(201,215,232,.35)}
   .archive-bar{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
@@ -637,7 +638,7 @@
     <button class="tab" data-page="archive"><span class="ticon">📂</span>归档</button>
   </nav>
 
-  <div class="foot">周末工作台 · v2.9.2 · 所有数据保存在本机，私密安全</div>
+  <div class="foot">周末工作台 · v2.9.3 · 所有数据保存在本机，私密安全</div>
 </div>
 
 <!-- 柔和弹窗 -->
