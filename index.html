@@ -555,7 +555,7 @@
     <section class="card">
       <div class="card-title"><span class="ic">✨</span><h2 id="reviewTitle">周末回顾 · 小确幸</h2></div>
       <div class="stat-row">
-        <div class="stat"><div class="n" id="stFocus">0</div><div class="l">专注分钟</div></div>
+        <div class="stat"><div class="n" id="stFocus">0</div><div class="l">本周专注</div></div>
         <div class="stat"><div class="n" id="stDone">0</div><div class="l">完成心愿</div></div>
         <div class="stat"><div class="n t" id="stMood">待记录</div><div class="l">今日心情</div></div>
       </div>
@@ -1503,7 +1503,20 @@ $('#pvWrap').addEventListener('click',e=>{if(e.target===$('#pvWrap'))$('#pvWrap'
 /* ---------- 氛围音引擎（Web Audio 实时生成） ---------- */
 let _actx=null;const ambNodes={};
 function audioCtx(){
-  if(!_actx){_actx=new (window.AudioContext||window.webkitAudioContext)();}
+  if(!_actx){
+    _actx=new (window.AudioContext||window.webkitAudioContext)();
+    _actx.onstatechange=()=>{
+      if(_actx.state==='suspended'||_actx.state==='interrupted'){
+        Object.keys(ambNodes).forEach(name=>{
+          try{ambNodes[name].src.stop();}catch(e){}
+          try{ambNodes[name].gain.disconnect();}catch(e){}
+          delete ambNodes[name];
+        });
+        $$('.amb .chip').forEach(c=>c.classList.remove('on'));
+        ambSel.length=0;
+      }
+    };
+  }
   return _actx;
 }
 function fillNoise(buf,type){
@@ -1527,19 +1540,30 @@ function buildAmbGraph(ctx,name){
   ambNodes[name]={src,gain};
 }
 function startAmb(name){
-  if(ambNodes[name])return;
+  // 清理可能因锁屏/切后台而变质的旧节点
+  if(ambNodes[name]){
+    try{ambNodes[name].src.stop();}catch(e){}
+    try{ambNodes[name].gain.disconnect();}catch(e){}
+    delete ambNodes[name];
+  }
   const ctx=audioCtx();
   if(ctx.state==='running'){
-    // 已经在运行，直接构建音频图
     buildAmbGraph(ctx,name);
   }else{
     // iOS：必须从用户手势中调用 resume()，不能 await（会丢失手势上下文）
     ctx.resume();
-    // resume() 可能在当前事件循环完成后才生效，用 statechange 监听
-    const onRun=()=>{if(ctx.state==='running'){ctx.removeEventListener('statechange',onRun);buildAmbGraph(ctx,name);}};
+    const onRun=()=>{
+      if(ctx.state==='running'){
+        ctx.removeEventListener('statechange',onRun);
+        if(!ambNodes[name]) buildAmbGraph(ctx,name);
+      }
+    };
     ctx.addEventListener('statechange',onRun);
     // 兜底：如果 300ms 后还没触发 statechange，直接尝试构建
-    setTimeout(()=>{ctx.removeEventListener('statechange',onRun);if(!ambNodes[name]&&ctx.state==='running')buildAmbGraph(ctx,name);},300);
+    setTimeout(()=>{
+      ctx.removeEventListener('statechange',onRun);
+      if(!ambNodes[name]&&ctx.state==='running') buildAmbGraph(ctx,name);
+    },300);
   }
 }
 function stopAmb(name){
@@ -1591,7 +1615,7 @@ function finishTimer(){
   running=false;clearInterval(timer);timer=null;left=0;runStartTs=0;updateIdle();
   render();setState('很棒，完成这段专注');saveTimer();
   const mins=Math.round(total/60);
-  const add=store.get('focusMin',0)+mins;store.set('focusMin',add);$('#stFocus').textContent=add;
+  const add=store.get('focusMin',0)+mins;store.set('focusMin',add);updateWeekFocus();
   const w=linkedId?wishes.find(x=>x.id===linkedId):null;
   logSession(mins, w?w.name:null, w?w.g:null);
   if(w&&w.bookId)addBookSession(w.bookId,mins,w.name);
@@ -1681,7 +1705,7 @@ renderPresets();
 
 /* 恢复计时状态（断网/刷新/黑屏保护 · 时间戳差值算法） */
 (function restoreTimer(){
-  const t=store.get('timer',null);if(!t){$('#stFocus').textContent=store.get('focusMin',0);render();return;}
+  const t=store.get('timer',null);if(!t){updateWeekFocus();render();return;}
   mode=t.mode||'focus';total=t.total||DUR[mode];left=(t.left!=null?t.left:total);
   linkedId=t.linkedId||null;running=false;runStartTs=0;
   $$('.mode-btn').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));
@@ -1700,7 +1724,7 @@ renderPresets();
       $('#startBtn').textContent='暂停';setState('享受当下时光');render();
     }
   }else{render();setState(mode==='focus'?'准备好了吗':'放松一下 · 深呼吸');}
-  $('#stFocus').textContent=store.get('focusMin',0);
+  updateWeekFocus();
 })();
 
 /* 黑屏 / 切后台 / 切标签页：回前台时用时间戳重算 */
@@ -1714,6 +1738,11 @@ window.addEventListener('pageshow',e=>{
   if(running){left=calcLeft();render();if(left<=0)finishTimer();}
 });
 
+function updateWeekFocus(){
+  const wk=weekKey(new Date());
+  const ss=store.get('sessions',[]).filter(s=>weekKey(new Date(s.ts))===wk);
+  $('#stFocus').textContent=ss.reduce((a,s)=>a+s.mins,0);
+}
 /* ---------- 本月专注看板 ---------- */
 function renderDash(){
   const mk=monthKey(new Date());
