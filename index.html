@@ -587,6 +587,11 @@
       <div class="bless"><div class="num">1</div><textarea data-b="0" placeholder="完整弹完一首曲子…"></textarea></div>
       <div class="bless"><div class="num">2</div><textarea data-b="1" placeholder="读完一章节书籍…"></textarea></div>
       <div class="bless"><div class="num">3</div><textarea data-b="2" placeholder="慢悠悠散了个步…"></textarea></div>
+      <div class="refl-head" style="margin-top:14px">
+        <div class="refl-title">💭 每日感悟</div>
+        <div class="refl-sub">读书、播客、聊天的火花</div>
+      </div>
+      <textarea id="dailyReflect" placeholder="今天跟朋友聊了一本好书、听到一期有启发的播客…记录下来，以后回头看会很珍贵 🌱" style="width:100%;min-height:80px;font-family:inherit;font-size:16px;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg2);color:var(--ink);resize:vertical;line-height:1.8;transition:.2s"></textarea>
       <div class="archive-bar" style="justify-content:center;margin-top:8px">
         <button id="expBtn">📄 导出</button>
         <button id="bkBtn">💾 备份</button>
@@ -635,7 +640,7 @@
     <button class="tab" data-page="archive"><span class="ticon">📂</span>归档</button>
   </nav>
 
-  <div class="foot">周末工作台 · v2.8.6 · 所有数据保存在本机，私密安全</div>
+  <div class="foot">周末工作台 · v2.9.0 · 所有数据保存在本机，私密安全</div>
 </div>
 
 <!-- 柔和弹窗 -->
@@ -996,10 +1001,13 @@ $$('.amb .chip').forEach(c=>{
   };
 });
 
-/* ---------- 小确幸 ---------- */
+/* ---------- 小确幸 + 每日感悟 ---------- */
 const bless=store.get('bless',['','','']);
 $$('.bless textarea').forEach(t=>{t.value=bless[+t.dataset.b]||'';
   t.oninput=()=>{bless[+t.dataset.b]=t.value;store.set('bless',bless)};});
+let reflection=store.get('reflection','');
+const $dr=$('#dailyReflect');if($dr){$dr.value=reflection;
+  $dr.oninput=()=>{reflection=$dr.value;store.set('reflection',reflection);};}
 
 /* ---------- 月度归档 ---------- */
 function refreshArcSel(){
@@ -1100,6 +1108,7 @@ function weekArchiveCurrent(wkOverride){
     }));
   weekArc[wk] = {
     bless: bless.slice(),
+    reflection: store.get('reflection', ''),
     mood: store.get('mood', ''),
     done: {...done},
     timed: {...timed},
@@ -1119,9 +1128,11 @@ function resetWeeklyData(){
   store.set('bless', ['','','']);
   store.set('mood', '');
   store.set('photos', {});
+  store.set('reflection', '');
   store.set('lastWeekKey', weekKey(new Date()));
   done = {}; timed = {}; photos = {};
   bless[0] = ''; bless[1] = ''; bless[2] = '';
+  reflection = ''; if($('#dailyReflect'))$('#dailyReflect').value='';
 }
 
 function refreshWeekArcSel(){
@@ -1154,6 +1165,9 @@ function showWeekPast(k){
   const totalCnt = a.wishesSnap ? a.wishesSnap.filter(w => w.count).length : 0;
   let html = `<b>${k} 起的一周</b> · 完成 ${doneCnt}/${totalCnt} 件` +
     (lines.length ? '<br>' + lines.map((t, i) => `${i + 1}. ${t}`).join('<br>') : '<br>（那周没有记录小确幸）');
+  if (a.reflection) {
+    html += `<br><span style="color:#6a5aa0">💭 </span>${esc(a.reflection).substring(0, 80)}${a.reflection.length>80?'…':''}`;
+  }
   if (photoList.length) {
     html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">' +
       photoList.map((p, i) => `<img src="${p.url}" data-i="${i}" style="width:56px;height:56px;object-fit:cover;border-radius:9px;cursor:pointer;border:1px solid var(--line)">`).join('') + '</div>';
@@ -1722,7 +1736,15 @@ $('#pvWrap').addEventListener('click',e=>{if(e.target===$('#pvWrap'))$('#pvWrap'
 /* ---------- 氛围音引擎（Web Audio 实时生成） ---------- */
 let _actx=null;const ambNodes={};
 function audioCtx(){
-  if(!_actx){_actx=new (window.AudioContext||window.webkitAudioContext)();}
+  if(!_actx){
+    _actx=new (window.AudioContext||window.webkitAudioContext)();
+    // 黑屏/切后台后自动恢复播放
+    _actx.onstatechange=()=>{
+      if(_actx.state==='suspended'&&Object.keys(ambNodes).length>0){
+        _actx.resume().catch(()=>{});
+      }
+    };
+  }
   return _actx;
 }
 function fillNoise(buf,type){
