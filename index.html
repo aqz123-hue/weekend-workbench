@@ -638,7 +638,7 @@
     <button class="tab" data-page="archive"><span class="ticon">📂</span>归档</button>
   </nav>
 
-  <div class="foot">周末工作台 · v2.9.5 · 所有数据保存在本机，私密安全</div>
+  <div class="foot">周末工作台 · v2.9.6 · 所有数据保存在本机，私密安全</div>
 </div>
 
 <!-- 柔和弹窗 -->
@@ -945,6 +945,10 @@ function mix(a,b,t){
   const r=pa.map((v,i)=>Math.round(v+(pb[i]-v)*t));
   return `rgb(${r[0]},${r[1]},${r[2]})`;
 }
+/* 阅读书目须在首次 renderWishes 之前初始化：带 bookId 的心愿会调用 findBook→books，
+   若 books 尚未初始化（TDZ）会抛 ReferenceError，导致只渲染第一项、累计时间空白。 */
+let books=store.get('books',[]);
+books.forEach(b=>{if(!b.sessions)b.sessions=[];if(!b.totalMins)b.totalMins=b.sessions.reduce((a,s)=>a+s.mins,0);});
 renderWishes();
 
 /* 添加小事 */
@@ -1511,8 +1515,6 @@ function buildExportHTML(d){
 }
 
 /* ---------- 阅读记录（轻量内嵌 · 成长记录） ---------- */
-let books=store.get('books',[]);
-books.forEach(b=>{if(!b.sessions)b.sessions=[];if(!b.totalMins)b.totalMins=b.sessions.reduce((a,s)=>a+s.mins,0);});
 function saveBooks(){store.set('books',books);}
 function findBook(id){return books.find(b=>b.id===id);}
 function isReadingWish(w){return !!w.bookId && !!findBook(w.bookId);}
