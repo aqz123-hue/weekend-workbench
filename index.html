@@ -638,7 +638,7 @@
     <button class="tab" data-page="archive"><span class="ticon">📂</span>归档</button>
   </nav>
 
-  <div class="foot">周末工作台 · v2.9.4 · 所有数据保存在本机，私密安全</div>
+  <div class="foot">周末工作台 · v2.9.5 · 所有数据保存在本机，私密安全</div>
 </div>
 
 <!-- 柔和弹窗 -->
@@ -731,10 +731,34 @@ const $$ = s=>document.querySelectorAll(s);
 const store = {
   get(k,d){try{const v=localStorage.getItem('wb_'+k);return v?JSON.parse(v):d}catch(e){return d}},
   set(k,v){
-    localStorage.setItem('wb_'+k,JSON.stringify(v));
-    _idb.set(k,v);  // 异步镜像到 IndexedDB
+    _idb.set(k,v);  // 先写 IndexedDB（异步、配额大，作为可靠镜像）
+    try{ localStorage.setItem('wb_'+k,JSON.stringify(v)); }catch(e){ /* 配额满时静默，数据已入 IDB */ }
+  },
+  // 恢复专用：写入原始 JSON 字符串，并同步镜像到 IndexedDB（避免双层存储失步 → 数据回退）
+  setRaw(k,raw){
+    try{ localStorage.setItem(k,raw); }catch(e){ /* localStorage 配额满时静默，IDB 仍会写入 */ }
+    try{ _idb.set(k.slice(3),JSON.parse(raw)); }catch(e){}
   }
 };
+
+/* 申请持久存储：降低 iOS 因存储压力/7天策略清除 localStorage 的概率 */
+if(navigator.storage&&navigator.storage.persist){try{navigator.storage.persist().catch(()=>{});}catch(e){}}
+
+/* 底部 Tab 切换（提前绑定：即使下方数据初始化出错，tab 也能正常点击） */
+document.body.classList.add('has-tabs');
+(function(){
+  const tabs = $$('.tab');
+  const pages = $$('.page');
+  tabs.forEach(t => {
+    t.onclick = () => {
+      tabs.forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      pages.forEach(p => p.classList.remove('active'));
+      const page = document.getElementById('page-' + t.dataset.page);
+      if (page) page.classList.add('active');
+    };
+  });
+})();
 
 /* ── Service Worker 已移除 ──
    iOS Web Clip 会将 SW 缓存独立存储，即使服务端更新，旧缓存仍会被反复加载，
@@ -759,9 +783,11 @@ const store = {
     }
     // localStorage 丢失但 IndexedDB 还有数据 → 自动恢复
     _idb.exportAll().then(({ keys, vals }) => {
-      if (!keys.length) return;
+      if (!keys.length) { localStorage.setItem('wb_initialized','1'); return; }
       keys.forEach((k, i) => { try { localStorage.setItem(k, vals[i]); } catch (e) {} });
-      // 使用带时间戳的 URL 强制绕过 SW 缓存重新加载
+      // 恢复后立即标记已初始化，避免下次启动重复恢复（死循环）
+      localStorage.setItem('wb_initialized', '1');
+      // 使用带时间戳的 URL 强制绕过缓存重新加载
       const busted = location.href.split('?')[0] + '?v=' + Date.now();
       location.replace(busted);
     });
@@ -1280,7 +1306,7 @@ function restoreFromJsonObj(p){
   showModal({title:'♻️ 恢复备份',body:'将用备份覆盖当前全部数据（共 '+keys.length+' 项）。覆盖后无法撤销，建议先点「💾 备份」存一份当前数据。确定继续？',
     buttons:[
       {label:'确定恢复',kind:'main',onClick:()=>{
-        keys.forEach(k=>localStorage.setItem(k,p.data[k]));
+        keys.forEach(k=>store.setRaw(k,p.data[k])); // 同时写 localStorage + IndexedDB，杜绝失步
         localStorage.setItem('wb_initialized','1'); // 阻止 restoreFromIDB 用旧数据覆盖
         hideModal();
         location.replace(location.href.split('?')[0]+'?v='+Date.now());
@@ -1336,7 +1362,7 @@ function restoreFromHtml(html){
     body:'已从 HTML 快照识别 '+wishes.length+' 条心愿、'+sessions.length+' 条专注、'+books.length+' 本书、'+moods.length+' 条心情。'+
          '<br><span style="color:var(--ink-soft);font-size:12px">注意：HTML 是展示存档，分类/逐张照片等字段可能缺失；完整恢复请用「💾 备份」导出的 JSON。将覆盖当前数据，确定继续？</span>',
     buttons:[
-      {label:'确定恢复',kind:'main',onClick:()=>{Object.keys(data).forEach(k=>localStorage.setItem(k,data[k]));localStorage.setItem('wb_initialized','1');hideModal();location.replace(location.href.split('?')[0]+'?v='+Date.now());}},
+      {label:'确定恢复',kind:'main',onClick:()=>{Object.keys(data).forEach(k=>store.setRaw(k,data[k]));localStorage.setItem('wb_initialized','1');hideModal();location.replace(location.href.split('?')[0]+'?v='+Date.now());}},
       {label:'取消',onClick:()=>hideModal()}
     ]});
 }
@@ -2178,21 +2204,7 @@ renderDash();
   }
 })();
 
-/* ---------- 底部 Tab 切换 ---------- */
-document.body.classList.add('has-tabs');
-(function(){
-  const tabs = $$('.tab');
-  const pages = $$('.page');
-  tabs.forEach(t => {
-    t.onclick = () => {
-      tabs.forEach(x => x.classList.remove('active'));
-      t.classList.add('active');
-      pages.forEach(p => p.classList.remove('active'));
-      const page = document.getElementById('page-' + t.dataset.page);
-      if (page) page.classList.add('active');
-    };
-  });
-})();
+/* ---------- 底部 Tab 切换（已上移到脚本开头，保证数据出错时也能点击） ---------- */
 
 /* ---------- 暗色模式 ---------- */
 const dark=store.get('dark',false);
