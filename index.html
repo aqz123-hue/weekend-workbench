@@ -638,7 +638,7 @@
     <button class="tab" data-page="archive"><span class="ticon">📂</span>归档</button>
   </nav>
 
-  <div class="foot">周末工作台 · v2.9.6 · 所有数据保存在本机，私密安全</div>
+  <div class="foot">周末工作台 · v2.9.7 · 所有数据保存在本机，私密安全</div>
 </div>
 
 <!-- 柔和弹窗 -->
@@ -1548,6 +1548,13 @@ function openBookModal(bookId,w){
   const sess=(b.sessions||[]).slice().sort((a,c)=>c.ts-a.ts).slice(0,15);
   const sessHtml=sess.length?`<div class="bm-sess">${sess.map(s=>`<div class="bs-item"><span>${fmtDate(s.ts).slice(0,10)}</span><b>${s.mins}min</b>${s.wishName?'<span>· '+esc(s.wishName)+'</span>':''}</div>`).join('')}</div>`:'';
   const body=`<div class="bm-title">📖 ${esc(b.title)}</div>
+    <div id="bkCoverWrap" style="display:flex;justify-content:center;margin:10px 0 6px">
+      ${b.cover?`<img src="${b.cover}" alt="封面" style="max-width:120px;max-height:160px;border-radius:8px;object-fit:cover;box-shadow:0 2px 8px rgba(0,0,0,.15)">`:`<div style="width:80px;height:106px;border:1px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);font-size:12px">暂无封面</div>`}
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-bottom:8px">
+      <button class="more-act" id="bkCoverUp">📷 ${b.cover?'更换封面':'上传封面'}</button>
+      <button class="more-act" id="bkCoverDel" style="${b.cover?'':'display:none'}">🗑 删除封面</button>
+    </div>
     <div class="bm-info">
       <span>累计 <b>${b.totalMins||0}min</b></span><span class="sep">·</span>
       <span>${b.sessions?b.sessions.length:0} 次阅读</span>
@@ -1600,6 +1607,8 @@ function openBookModal(bookId,w){
   showModal({title:'',body,buttons:btns});
   const tg=$('#bmToggle');
   if(tg)tg.onclick=()=>tg.classList.toggle('on');
+  $('#bkCoverUp').onclick=()=>{bookCoverTarget=b.id;bookCoverInput.click();};
+  $('#bkCoverDel').onclick=()=>{delete b.cover;saveBooks();renderReadStats();updateBkCover(b);};
 }
 
 function addBookSession(bookId,mins,wishName){
@@ -1625,6 +1634,7 @@ function cardHtmlFor(b){
     : `<div class="rc-note empty">还没有写感悟，记一点也好 🌱</div>`;
   return `<div class="rb-card" data-bid="${b.id}">
     <div class="rc-top">
+      ${b.cover?`<div style="flex:0 0 44px;height:60px;margin-right:10px;border-radius:6px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.12)"><img src="${b.cover}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></div>`:''}
       <div style="flex:1;min-width:0">
         <div class="rc-title">${esc(b.title)}</div>
         ${b.author?`<div class="rc-author">${esc(b.author)}</div>`:''}
@@ -1740,6 +1750,28 @@ fileInput.onchange=()=>{
     store.set('photos',photos);renderWishes();fileInput.value='';
   });
 };
+
+/* ---------- 书籍封面照（每本书一张封面） ---------- */
+let bookCoverTarget=null;
+const bookCoverInput=document.createElement('input');
+bookCoverInput.type='file';bookCoverInput.accept='image/*';
+bookCoverInput.style.display='none';document.body.appendChild(bookCoverInput);
+bookCoverInput.onchange=()=>{
+  const f=bookCoverInput.files&&bookCoverInput.files[0];if(!f||!bookCoverTarget)return;
+  compressImg(f,520,url=>{
+    const b=findBook(bookCoverTarget);
+    if(b){b.cover=url;saveBooks();renderReadStats();updateBkCover(b);}
+    bookCoverInput.value='';bookCoverTarget=null;
+  });
+};
+function updateBkCover(b){
+  const wrap=$('#bkCoverWrap');if(!wrap)return;
+  wrap.innerHTML=b.cover
+    ?`<img src="${b.cover}" alt="封面" style="max-width:120px;max-height:160px;border-radius:8px;object-fit:cover;box-shadow:0 2px 8px rgba(0,0,0,.15)">`
+    :`<div style="width:80px;height:106px;border:1px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);font-size:12px">暂无封面</div>`;
+  const up=$('#bkCoverUp');if(up)up.textContent='📷 '+(b.cover?'更换封面':'上传封面');
+  const del=$('#bkCoverDel');if(del)del.style.display=b.cover?'':'none';
+}
 function viewPhotos(arr,opts,startIdx){
   if(!arr||!arr.length)return;let idx=startIdx||0;opts=opts||{};
   const show=()=>{$('#pvImg').src=arr[idx];$('#pvCount').textContent=(idx+1)+' / '+arr.length;};
