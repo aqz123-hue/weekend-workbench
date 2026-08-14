@@ -638,7 +638,7 @@
     <button class="tab" data-page="archive"><span class="ticon">📂</span>归档</button>
   </nav>
 
-  <div class="foot">周末工作台 · v2.9.7 · 所有数据保存在本机，私密安全</div>
+  <div class="foot">周末工作台 · v2.9.8 · 所有数据保存在本机，私密安全</div>
 </div>
 
 <!-- 柔和弹窗 -->
@@ -816,8 +816,11 @@ if(!wishes) wishes=[
 ];
 let done = store.get('done',{});
 let timed = store.get('timed',{});
-let photos = store.get('photos',{});
-function saveWishes(){store.set('wishes',wishes);store.set('done',done);store.set('timed',timed);store.set('photos',photos);}
+let photos = {};
+let covers = {};
+function savePhotos(){_idb.set('photos',photos);}
+function saveCovers(){_idb.set('covers',covers);}
+function saveWishes(){store.set('wishes',wishes);store.set('done',done);store.set('timed',timed);}
 wishes.forEach(w=>{if(w.count===undefined)w.count=true;});
 if(!store.get('gameMigrated',false)){
   const g=wishes.find(w=>w.name==='游戏');
@@ -911,7 +914,7 @@ function openItemMore(w){
         {label:'删除',kind:'main',onClick:()=>{
           const i=wishes.findIndex(x=>x.id===w.id);if(i>=0)wishes.splice(i,1);
           delete done[w.id];delete timed[w.id];delete photos[w.id];
-          store.set('photos',photos);saveWishes();renderWishes();hideModal();
+          savePhotos();saveWishes();renderWishes();hideModal();
         }}]});
   };
 }
@@ -949,7 +952,19 @@ function mix(a,b,t){
    若 books 尚未初始化（TDZ）会抛 ReferenceError，导致只渲染第一项、累计时间空白。 */
 let books=store.get('books',[]);
 books.forEach(b=>{if(!b.sessions)b.sessions=[];if(!b.totalMins)b.totalMins=b.sessions.reduce((a,s)=>a+s.mins,0);});
-renderWishes();
+// 心愿照片 + 书籍封面存 IndexedDB：异步加载后渲染；首次从 localStorage 迁移到 IDB 并移除
+Promise.all([
+  _idb.get('photos').then(p=>{
+    const lp=store.get('photos',null);
+    if(lp){_idb.set('photos',lp);localStorage.removeItem('wb_photos');return lp;}
+    return p||{};
+  }),
+  _idb.get('covers').then(c=>c||{})
+]).then(([p,c])=>{
+  photos=p;covers=c;
+  renderWishes();
+  renderDash();
+}).catch(()=>{renderWishes();});
 
 /* 添加小事 */
 let cg='art',ccount='1';
@@ -1155,7 +1170,7 @@ function resetWeeklyData(){
   store.set('timed', {});
   store.set('bless', ['','','']);
   store.set('mood', '');
-  store.set('photos', {});
+  _idb.set('photos', {});
   store.set('reflection', '');
   store.set('lastWeekKey', weekKey(new Date()));
   done = {}; timed = {}; photos = {};
@@ -1545,15 +1560,16 @@ function openBookPicker(w){
 
 function openBookModal(bookId,w){
   const b=findBook(bookId);if(!b)return;
+  const cv=covers[b.id];
   const sess=(b.sessions||[]).slice().sort((a,c)=>c.ts-a.ts).slice(0,15);
   const sessHtml=sess.length?`<div class="bm-sess">${sess.map(s=>`<div class="bs-item"><span>${fmtDate(s.ts).slice(0,10)}</span><b>${s.mins}min</b>${s.wishName?'<span>· '+esc(s.wishName)+'</span>':''}</div>`).join('')}</div>`:'';
   const body=`<div class="bm-title">📖 ${esc(b.title)}</div>
     <div id="bkCoverWrap" style="display:flex;justify-content:center;margin:10px 0 6px">
-      ${b.cover?`<img src="${b.cover}" alt="封面" style="max-width:120px;max-height:160px;border-radius:8px;object-fit:cover;box-shadow:0 2px 8px rgba(0,0,0,.15)">`:`<div style="width:80px;height:106px;border:1px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);font-size:12px">暂无封面</div>`}
+      ${cv?`<img src="${cv}" alt="封面" style="max-width:120px;max-height:160px;border-radius:8px;object-fit:cover;box-shadow:0 2px 8px rgba(0,0,0,.15)">`:`<div style="width:80px;height:106px;border:1px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);font-size:12px">暂无封面</div>`}
     </div>
     <div style="display:flex;gap:8px;justify-content:center;margin-bottom:8px">
-      <button class="more-act" id="bkCoverUp">📷 ${b.cover?'更换封面':'上传封面'}</button>
-      <button class="more-act" id="bkCoverDel" style="${b.cover?'':'display:none'}">🗑 删除封面</button>
+      <button class="more-act" id="bkCoverUp">📷 ${cv?'更换封面':'上传封面'}</button>
+      <button class="more-act" id="bkCoverDel" style="${cv?'':'display:none'}">🗑 删除封面</button>
     </div>
     <div class="bm-info">
       <span>累计 <b>${b.totalMins||0}min</b></span><span class="sep">·</span>
@@ -1608,7 +1624,7 @@ function openBookModal(bookId,w){
   const tg=$('#bmToggle');
   if(tg)tg.onclick=()=>tg.classList.toggle('on');
   $('#bkCoverUp').onclick=()=>{bookCoverTarget=b.id;bookCoverInput.click();};
-  $('#bkCoverDel').onclick=()=>{delete b.cover;saveBooks();renderReadStats();updateBkCover(b);};
+  $('#bkCoverDel').onclick=()=>{delete covers[b.id];saveCovers();renderReadStats();updateBkCover(b.id);};
 }
 
 function addBookSession(bookId,mins,wishName){
@@ -1634,7 +1650,7 @@ function cardHtmlFor(b){
     : `<div class="rc-note empty">还没有写感悟，记一点也好 🌱</div>`;
   return `<div class="rb-card" data-bid="${b.id}">
     <div class="rc-top">
-      ${b.cover?`<div style="flex:0 0 44px;height:60px;margin-right:10px;border-radius:6px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.12)"><img src="${b.cover}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></div>`:''}
+      ${covers[b.id]?`<div style="flex:0 0 44px;height:60px;margin-right:10px;border-radius:6px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.12)"><img src="${covers[b.id]}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></div>`:''}
       <div style="flex:1;min-width:0">
         <div class="rc-title">${esc(b.title)}</div>
         ${b.author?`<div class="rc-author">${esc(b.author)}</div>`:''}
@@ -1747,7 +1763,7 @@ fileInput.onchange=()=>{
   compressImg(f,520,url=>{
     photos[photoTarget]=photos[photoTarget]||[];
     if(photos[photoTarget].length<4)photos[photoTarget].push(url);
-    store.set('photos',photos);renderWishes();fileInput.value='';
+    savePhotos();renderWishes();fileInput.value='';
   });
 };
 
@@ -1759,18 +1775,18 @@ bookCoverInput.style.display='none';document.body.appendChild(bookCoverInput);
 bookCoverInput.onchange=()=>{
   const f=bookCoverInput.files&&bookCoverInput.files[0];if(!f||!bookCoverTarget)return;
   compressImg(f,520,url=>{
-    const b=findBook(bookCoverTarget);
-    if(b){b.cover=url;saveBooks();renderReadStats();updateBkCover(b);}
+    if(findBook(bookCoverTarget)){covers[bookCoverTarget]=url;saveCovers();renderReadStats();updateBkCover(bookCoverTarget);}
     bookCoverInput.value='';bookCoverTarget=null;
   });
 };
-function updateBkCover(b){
+function updateBkCover(bookId){
+  const cv=covers[bookId];
   const wrap=$('#bkCoverWrap');if(!wrap)return;
-  wrap.innerHTML=b.cover
-    ?`<img src="${b.cover}" alt="封面" style="max-width:120px;max-height:160px;border-radius:8px;object-fit:cover;box-shadow:0 2px 8px rgba(0,0,0,.15)">`
+  wrap.innerHTML=cv
+    ?`<img src="${cv}" alt="封面" style="max-width:120px;max-height:160px;border-radius:8px;object-fit:cover;box-shadow:0 2px 8px rgba(0,0,0,.15)">`
     :`<div style="width:80px;height:106px;border:1px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);font-size:12px">暂无封面</div>`;
-  const up=$('#bkCoverUp');if(up)up.textContent='📷 '+(b.cover?'更换封面':'上传封面');
-  const del=$('#bkCoverDel');if(del)del.style.display=b.cover?'':'none';
+  const up=$('#bkCoverUp');if(up)up.textContent='📷 '+(cv?'更换封面':'上传封面');
+  const del=$('#bkCoverDel');if(del)del.style.display=cv?'':'none';
 }
 function viewPhotos(arr,opts,startIdx){
   if(!arr||!arr.length)return;let idx=startIdx||0;opts=opts||{};
@@ -1783,7 +1799,7 @@ function viewPhotos(arr,opts,startIdx){
     if(!arr.length){$('#pvWrap').classList.remove('show');}
     else if(idx>=arr.length)idx=0;
     // 支持两种模式：心愿照片（通过 opts.id）和归档照片（通过 opts.onDelete 回调）
-    if(opts.id){photos[opts.id]=arr;store.set('photos',photos);renderWishes();}
+    if(opts.id){photos[opts.id]=arr;savePhotos();renderWishes();}
     if(opts.onDelete)opts.onDelete(arr);
     show();};
   $('#pvClose').onclick=()=>$('#pvWrap').classList.remove('show');
