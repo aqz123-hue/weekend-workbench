@@ -638,7 +638,7 @@
     <button class="tab" data-page="archive"><span class="ticon">📂</span>归档</button>
   </nav>
 
-  <div class="foot">周末工作台 · v2.9.8 · 所有数据保存在本机，私密安全</div>
+  <div class="foot">周末工作台 · v2.9.9 · 所有数据保存在本机，私密安全</div>
 </div>
 
 <!-- 柔和弹窗 -->
@@ -818,8 +818,12 @@ let done = store.get('done',{});
 let timed = store.get('timed',{});
 let photos = {};
 let covers = {};
+let archive = {};
+let weekArchive = {};
 function savePhotos(){_idb.set('photos',photos);}
 function saveCovers(){_idb.set('covers',covers);}
+function saveArchive(){_idb.set('archive',archive);}
+function saveWeekArchive(){_idb.set('weekArchive',weekArchive);}
 function saveWishes(){store.set('wishes',wishes);store.set('done',done);store.set('timed',timed);}
 wishes.forEach(w=>{if(w.count===undefined)w.count=true;});
 if(!store.get('gameMigrated',false)){
@@ -952,18 +956,31 @@ function mix(a,b,t){
    若 books 尚未初始化（TDZ）会抛 ReferenceError，导致只渲染第一项、累计时间空白。 */
 let books=store.get('books',[]);
 books.forEach(b=>{if(!b.sessions)b.sessions=[];if(!b.totalMins)b.totalMins=b.sessions.reduce((a,s)=>a+s.mins,0);});
-// 心愿照片 + 书籍封面存 IndexedDB：异步加载后渲染；首次从 localStorage 迁移到 IDB 并移除
+// 照片/封面/归档存 IndexedDB：异步加载后渲染；首次从 localStorage 迁移到 IDB 并移除
 Promise.all([
   _idb.get('photos').then(p=>{
     const lp=store.get('photos',null);
     if(lp){_idb.set('photos',lp);localStorage.removeItem('wb_photos');return lp;}
     return p||{};
   }),
-  _idb.get('covers').then(c=>c||{})
-]).then(([p,c])=>{
-  photos=p;covers=c;
+  _idb.get('covers').then(c=>c||{}),
+  _idb.get('archive').then(a=>{
+    const la=store.get('archive',null);
+    if(la){_idb.set('archive',la);localStorage.removeItem('wb_archive');return la;}
+    return a||{};
+  }),
+  _idb.get('weekArchive').then(w=>{
+    const lw=store.get('weekArchive',null);
+    if(lw){_idb.set('weekArchive',lw);localStorage.removeItem('wb_weekArchive');return lw;}
+    return w||{};
+  })
+]).then(([p,c,a,w])=>{
+  photos=p;covers=c;archive=a;weekArchive=w;
   renderWishes();
   renderDash();
+  refreshArcSel();
+  refreshWeekArcSel();
+  checkNewWeek();
 }).catch(()=>{renderWishes();});
 
 /* 添加小事 */
@@ -1054,7 +1071,7 @@ const $dr=$('#dailyReflect');if($dr){$dr.value=reflection;
 
 /* ---------- 月度归档 ---------- */
 function refreshArcSel(){
-  const arc=store.get('archive',{});const sel=$('#arcSel');
+  const arc=archive;const sel=$('#arcSel');
   sel.innerHTML='<option value="">翻阅往期…</option>'+
     Object.keys(arc).sort().reverse().map(k=>`<option value="${k}">${k}</option>`).join('');
   // 显示本月归档状态
@@ -1066,7 +1083,7 @@ function refreshArcSel(){
   } else {st.style.display='none';}
 }
 $('#arcBtn').onclick=()=>{
-  const k=monthKey(new Date());const arc=store.get('archive',{});
+  const k=monthKey(new Date());const arc=archive;
   const ex=arc[k]||{};
   const cur=wishes.flatMap(w=>(photos[w.id]||[]).map(u=>({name:w.name,url:u})));
   // 去重：防止重复点击导致同一张照片出现多次
@@ -1080,11 +1097,11 @@ $('#arcBtn').onclick=()=>{
     bookSnap:books.map(b=>({title:b.title,author:b.author,status:b.status,progress:b.progress,note:b.note,totalMins:b.totalMins,startedAt:b.startedAt,finishedAt:b.finishedAt,
       sessions:(b.sessions||[]).filter(s=>monthKey(new Date(s.ts))===k)})),
     at:Date.now()};
-  store.set('archive',arc);refreshArcSel();$('#arcSel').value=k;showPast(k);
+  saveArchive();refreshArcSel();$('#arcSel').value=k;showPast(k);
 };
 $('#arcSel').onchange=()=>{if($('#arcSel').value){$('#weekArcSel').value='';showPast($('#arcSel').value);}else $('#past').classList.remove('show');};
 function showPast(k){
-  const a=store.get('archive',{})[k];if(!a)return;
+  const a=archive[k];if(!a)return;
   const lines=a.bless.filter(Boolean);
   const pl=(a.photoList||[]);
   let html=`<b>${k} 的周末</b> · 专注 ${a.focus}min · 完成 ${a.done} 件 · 心情 ${a.mood||'–'}<br>`+
@@ -1107,7 +1124,7 @@ function showPast(k){
         viewPhotos(urls,{deletable:true,
           onDelete:(updatedUrls)=>{
             const newPl=pl.filter(p=>updatedUrls.includes(p.url));
-            const arc=store.get('archive',{});if(arc[k]){arc[k].photoList=newPl;store.set('archive',arc);}
+            const arc=archive;if(arc[k]){arc[k].photoList=newPl;saveArchive();}
             a.photoList=newPl;pl.length=0;pl.push(...newPl);
             urls.length=0;urls.push(...updatedUrls);
             // 刷新缩略图（保留照片查看器不关闭）
@@ -1131,7 +1148,7 @@ refreshArcSel();
 /* ---------- 周归档 ---------- */
 function weekArchiveCurrent(wkOverride){
   const wk = wkOverride || weekKey(new Date());
-  const weekArc = store.get('weekArchive', {});
+  const weekArc = weekArchive;
   // 本周已归档过 → 覆盖更新（允许重复归档以更新快照）
   const curPhotos = {};
   Object.keys(photos).forEach(id => {
@@ -1161,7 +1178,7 @@ function weekArchiveCurrent(wkOverride){
     bookSnap,
     at: Date.now()
   };
-  store.set('weekArchive', weekArc);
+  saveWeekArchive();
   return wk;
 }
 
@@ -1179,7 +1196,7 @@ function resetWeeklyData(){
 }
 
 function refreshWeekArcSel(){
-  const weekArc = store.get('weekArchive', {});
+  const weekArc = weekArchive;
   const sel = $('#weekArcSel');
   if (!sel) return;
   sel.innerHTML = '<option value="">翻阅往周…</option>' +
@@ -1194,7 +1211,7 @@ function refreshWeekArcSel(){
 }
 
 function showWeekPast(k){
-  const weekArc = store.get('weekArchive', {});
+  const weekArc = weekArchive;
   const a = weekArc[k];
   if (!a) return;
   const lines = (a.bless || []).filter(Boolean);
@@ -1229,13 +1246,13 @@ function showWeekPast(k){
         viewPhotos(urls, {
           deletable: true,
           onDelete: (updatedUrls) => {
-            const wArc = store.get('weekArchive', {});
+            const wArc = weekArchive;
             if (wArc[k] && wArc[k].photos) {
               Object.keys(wArc[k].photos).forEach(id => {
                 wArc[k].photos[id] = (wArc[k].photos[id] || []).filter(u => updatedUrls.includes(u));
                 if (!wArc[k].photos[id].length) delete wArc[k].photos[id];
               });
-              store.set('weekArchive', wArc);
+              saveWeekArchive();
             }
             showWeekPast(k);
           }
@@ -1250,7 +1267,7 @@ function showWeekPast(k){
 /* 归档本周按钮（仅保存快照，不重置数据，可随时点击） */
 $('#weekArcBtn').onclick = () => {
   const wk = weekKey(new Date());
-  const weekArc = store.get('weekArchive', {});
+  const weekArc = weekArchive;
   const existing = weekArc[wk];
   const alreadyMsg = existing ? '<br><span style="font-size:12px;color:#b06a8c">⚠️ 本周已有归档，点击确认将用最新数据覆盖。</span>' : '';
   showModal({
@@ -1391,7 +1408,7 @@ $('#rsFile').onchange=e=>{const f=e.target.files&&e.target.files[0];if(f)jsonRes
 
 /* ---------- 轻量导出 ---------- */
 $('#expBtn').onclick=()=>{
-  const arcs=store.get('archive',{});const months=Object.keys(arcs).sort();
+  const arcs=archive;const months=Object.keys(arcs).sort();
   const body=`<div style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">导出为独立 HTML 文件（文字与照片内嵌，可离线打开 / 直接 Ctrl+P 打印）。</div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
       <label style="font-size:13px">时间范围</label>
@@ -1427,19 +1444,19 @@ function genExport(scope,mk){
     moods=store.get('moodLog',[]).filter(m=>weekKey(new Date(m.ts))===wk);
     blessText=bless.filter(Boolean);
     periodPhotos=Object.keys(photos).flatMap(id=>(photos[id]||[]));
-    const curA=store.get('archive',{})[monthKey(now)];
+    const curA=archive[monthKey(now)];
     if(curA&&curA.photoList)periodPhotos=periodPhotos.concat(curA.photoList.map(p=>p.url));
     bookSnap=books.filter(b=>(b.sessions||[]).some(s=>weekKey(new Date(s.ts))===wk))
       .map(b=>({title:b.title,author:b.author,status:b.status,progress:b.progress,note:b.note,totalMins:b.totalMins,
         sessions:(b.sessions||[]).filter(s=>weekKey(new Date(s.ts))===wk)}));
   }else if(scope==='month'){
-    label=mk+' 月';const a=store.get('archive',{})[mk];
+    label=mk+' 月';const a=archive[mk];
     if(a){wishSnap=a.wishesSnap||[];blessText=(a.bless||[]).filter(Boolean);periodPhotos=(a.photoList||[]).map(p=>p.url);
       if(a.bookSnap)bookSnap=a.bookSnap;}
     sess=store.get('sessions',[]).filter(s=>monthKey(new Date(s.ts))===mk);
     moods=store.get('moodLog',[]).filter(m=>monthKey(new Date(m.ts))===mk);
   }else{
-    const y=now.getFullYear();label=y+' 全年';const arcs=store.get('archive',{});
+    const y=now.getFullYear();label=y+' 全年';const arcs=archive;
     Object.values(arcs).forEach(a=>{
       if(a.wishesSnap)wishSnap=wishSnap.concat(a.wishesSnap);
       if(a.bless)(a.bless.filter(Boolean)).forEach(t=>{if(!blessText.includes(t))blessText.push(t);});
@@ -2053,7 +2070,7 @@ function renderDash(){
 renderDash();
 
 /* ── 新周检测：自动提示归档上周数据 ── */
-(function checkNewWeek() {
+function checkNewWeek() {
   const cw = weekKey(new Date());
   const lastWk = store.get('lastWeekKey', '');
   if (!lastWk) {
@@ -2110,7 +2127,7 @@ renderDash();
   if (lastWk === cw) {
     // v2.6 → v2.7 升级修复：检测旧数据是否实际属于上周
     const prevWk = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return weekKey(d); })();
-    const weekArc = store.get('weekArchive', {});
+    const weekArc = weekArchive;
     const hasData = Object.keys(done).length > 0 || bless.some(Boolean) || store.get('mood', '');
     if (hasData && !weekArc[prevWk] && !store.get('lastWeekKey_fixed', false)) {
       store.set('lastWeekKey_fixed', true);
@@ -2145,7 +2162,7 @@ renderDash();
   }
 
   // 进入新周！检查上周是否已归档
-  const weekArc = store.get('weekArchive', {});
+  const weekArc = weekArchive;
   const alreadyArchived = !!weekArc[lastWk];
 
   if (alreadyArchived) {
@@ -2188,7 +2205,7 @@ renderDash();
       }
     ]
   });
-})();
+}
 
 /* ---------- 周日遗留事项承接（排除重复项） ---------- */
 (function(){
@@ -2209,14 +2226,14 @@ renderDash();
           archive.forEach(id=>{const w=wishes.find(x=>x.id===id);
             if(w&&photos[id])photos[id].forEach(u=>rolledPhotos.push({name:w.name,url:u}));delete photos[id];});
           wishes=wishes.filter(w=>!archive.has(w.id));
-          const arc=store.get('archive',{});const k=monthKey(new Date());
+          const arc=archive;const k=monthKey(new Date());
           arc[k]=arc[k]||{bless:bless.slice(),focus:store.get('focusMin',0),done:0,mood:store.get('mood',''),rolled:[],photoList:[],wishesSnap:[],bookSnap:[],at:Date.now()};
           arc[k].rolled=(arc[k].rolled||[]).concat([...archive]);
           arc[k].photoList=(arc[k].photoList||[]).concat(rolledPhotos);
           arc[k].wishesSnap=wishesSnap;
           arc[k].bookSnap=books.map(b=>({title:b.title,author:b.author,status:b.status,progress:b.progress,note:b.note,totalMins:b.totalMins,startedAt:b.startedAt,finishedAt:b.finishedAt,
             sessions:(b.sessions||[]).filter(s=>monthKey(new Date(s.ts))===k)}));
-          store.set('archive',arc);saveWishes();renderWishes();refreshArcSel();hideModal();
+          saveArchive();saveWishes();renderWishes();refreshArcSel();hideModal();
         }}]
       });
       $('#mBody').querySelectorAll('.m-mini').forEach(b=>{
