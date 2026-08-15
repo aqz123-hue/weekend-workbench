@@ -473,6 +473,7 @@
       <div class="pill" id="modePill"><span class="big" id="weekday">周六</span><span class="sub" id="modeTag">周末模式</span></div>
       <div class="pill count" id="cdPill"><span class="big" id="cdDays">松弛时光</span><span class="sub" id="cdSub">整段时间都归你</span></div>
       <button class="theme-btn" id="themeBtn" title="切换深浅主题">🌙</button>
+      <button class="theme-btn" id="fontBtn" title="调节字号">A</button>
     </div>
   </header>
 
@@ -638,7 +639,7 @@
     <button class="tab" data-page="archive"><span class="ticon">📂</span>归档</button>
   </nav>
 
-  <div class="foot">周末工作台 · v2.9.9 · 所有数据保存在本机，私密安全</div>
+  <div class="foot">周末工作台 · v2.10.0 · 所有数据保存在本机，私密安全</div>
 </div>
 
 <!-- 柔和弹窗 -->
@@ -2281,6 +2282,25 @@ $('#themeBtn').onclick=()=>{
   $('#themeBtn').textContent=on?'☀️':'🌙';
 };
 if(dark)$('#themeBtn').textContent='☀️';
+
+/* ---------- 字号调节：标准 / 大 / 特大 ---------- */
+const FONT_LEVELS=[
+  {z:1,label:'标准',icon:'A'},
+  {z:1.12,label:'大',icon:'A+'},
+  {z:1.24,label:'特大',icon:'A++'}
+];
+let fontIdx=store.get('fontScale',0)||0;
+function applyFontSize(){
+  const lv=FONT_LEVELS[fontIdx]||FONT_LEVELS[0];
+  document.body.style.zoom=lv.z;
+  const b=$('#fontBtn');if(b){b.textContent=lv.icon;b.title='字号：'+lv.label;}
+}
+applyFontSize();
+$('#fontBtn').onclick=()=>{
+  fontIdx=(fontIdx+1)%FONT_LEVELS.length;
+  store.set('fontScale',fontIdx);
+  applyFontSize();
+};
 </script>
 </body>
 </html>
